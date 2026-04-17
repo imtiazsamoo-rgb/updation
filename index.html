@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Promotion Form</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#f4f6fb;
+  font-size:20px;
+}
+.wrap{
+  padding:10px;
+}
+.section{
+  background:#fff;
+  padding:14px;
+  border-radius:12px;
+  margin-bottom:12px;
+}
+h2{
+  margin:0 0 10px;
+}
+label{
+  font-weight:bold;
+  margin-top:10px;
+  display:block;
+}
+select,input,button{
+  width:100%;
+  padding:12px;
+  font-size:18px;
+  margin-top:5px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  box-sizing:border-box;
+}
+button{
+  background:#1976e9;
+  color:#fff;
+  border:none;
+}
+button:disabled{
+  opacity:.6;
+}
+.student-name{
+  font-size:28px;
+  font-weight:bold;
+}
+.father-name{
+  color:#666;
+}
+.progress{
+  font-weight:bold;
+  font-size:22px;
+}
+.nav{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.status-msg{
+  margin-top:10px;
+  font-weight:bold;
+  min-height:24px;
+}
+.loading{color:blue;}
+.success{color:green;}
+.error{color:red;}
+.gr-line{
+  margin-top:8px;
+  font-weight:bold;
+}
+.class-line{
+  margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <div class="section">
+    <h2>Promotion Form</h2>
+
+    <label>School</label>
+    <select id="school" onchange="onSchoolChange()">
+      <option value="">Select School</option>
+    </select>
+
+    <label>Class</label>
+    <select id="className" onchange="loadStudents()">
+      <option value="">Select Class</option>
+    </select>
+
+    <label>Search</label>
+    <input id="search" oninput="applyFilter()" placeholder="Search student or GR No">
+
+    <div id="topMsg" class="status-msg"></div>
+  </div>
+
+  <div id="progress" class="section progress">0 / 0</div>
+
+  <div id="studentBox"></div>
+
+  <div class="nav">
+    <button id="prevBtn" onclick="prevStudent()">Prev</button>
+    <button id="nextBtn" onclick="nextStudent()">Next</button>
+  </div>
+
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxN6JX5ClM_X0stmP4o_FMka4MgiGqgS8-e1T6tF39G2yw_FUsSscbVUjbF0t-WPUwtLg/exec';
+
+let data = null;
+let students = [];
+let filtered = [];
+let i = 0;
+let saving = false;
+
+function setTopMsg(t, c) {
+  const top = document.getElementById('topMsg');
+  top.className = 'status-msg ' + (c || '');
+  top.innerText = t || '';
+}
+
+function updateNavButtons() {
+  document.getElementById('prevBtn').disabled = saving || i <= 0 || filtered.length === 0;
+  document.getElementById('nextBtn').disabled = saving || i >= filtered.length - 1 || filtered.length === 0;
+}
+
+async function api(params) {
+  const u = new URL(API_URL);
+  Object.keys(params).forEach(k => u.searchParams.set(k, params[k]));
+  const res = await fetch(u.toString());
+  return await res.json();
+}
+
+async function loadInit() {
+  try {
+    setTopMsg("Loading...", "loading");
+
+    const r = await api({ action: 'init' });
+    if (!r.ok) throw new Error(r.error || 'Init failed');
+
+    data = r.data || { schools: [], classMap: {}, statusList: [] };
+
+    const school = document.getElementById('school');
+    school.innerHTML = '<option value="">Select School</option>';
+
+    data.schools.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s;
+      o.text = s;
+      school.appendChild(o);
+    });
+
+    setTopMsg("");
+    updateNavButtons();
+  } catch (e) {
+    setTopMsg("Error loading", "error");
+    alert(e.message || String(e));
+  }
+}
+
+function onSchoolChange() {
+  const schoolValue = document.getElementById('school').value;
+  const className = document.getElementById('className');
+
+  className.innerHTML = '<option value="">Select Class</option>';
+  document.getElementById('search').value = '';
+  document.getElementById('studentBox').innerHTML = '';
+  document.getElementById('progress').innerText = '0 / 0';
+
+  students = [];
+  filtered = [];
+  i = 0;
+
+  (data.classMap[schoolValue] || []).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c;
+    o.text = c;
+    className.appendChild(o);
+  });
+
+  updateNavButtons();
+}
+
+async function loadStudents() {
+  const schoolValue = document.getElementById('school').value;
+  const classValue = document.getElementById('className').value;
+  if (!schoolValue || !classValue) return;
+
+  try {
+    setTopMsg("Loading...", "loading");
+
+    const r = await api({
+      action: 'students',
+      school: schoolValue,
+      className: classValue
+    });
+
+    if (!r.ok) throw new Error(r.error || 'Student load failed');
+
+    students = r.data || [];
+    filtered = [...students];
+    i = 0;
+
+    setTopMsg("");
+    show();
+  } catch (e) {
+    setTopMsg("", "");
+    alert(e.message || String(e));
+  }
+}
+
+function applyFilter() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+
+  filtered = students.filter(s =>
+    String(s.name || '').toLowerCase().includes(q) ||
+    String(s.gr || '').toLowerCase().includes(q) ||
+    String(s.father || '').toLowerCase().includes(q)
+  );
+
+  i = 0;
+  show();
+}
+
+function show() {
+  const studentBox = document.getElementById('studentBox');
+  const progress = document.getElementById('progress');
+
+  if (!filtered.length) {
+    studentBox.innerHTML = "<div class='section'>No data</div>";
+    progress.innerText = "0 / 0";
+    updateNavButtons();
+    return;
+  }
+
+  const s = filtered[i];
+  progress.innerText = (i + 1) + ' / ' + filtered.length;
+
+  studentBox.innerHTML = `
+    <div class="section">
+      <div class="student-name">${escapeHtml(s.name || '')}</div>
+      <div class="father-name">${escapeHtml(s.father || '')}</div>
+      <div class="gr-line">GR No: ${escapeHtml(s.gr || '')}</div>
+      <div class="class-line">Class: ${escapeHtml(s.currentClass || '')}</div>
+
+      <label>Status</label>
+      <select id="status">
+        <option value="">Select Status</option>
+        ${(data.statusList || []).map(x =>
+          `<option value="${escapeHtml(x)}" ${x === s.status ? 'selected' : ''}>${escapeHtml(x)}</option>`
+        ).join('')}
+      </select>
+
+      <label>New Class</label>
+      <input id="newClass" readonly value="${escapeHtml(s.newClass || '')}">
+
+      <button id="saveBtn" onclick="save()">Save</button>
+      <div id="rowMsg" class="status-msg"></div>
+    </div>
+  `;
+
+  const statusEl = document.getElementById('status');
+  const newClassEl = document.getElementById('newClass');
+
+  statusEl.addEventListener('change', function () {
+    const selected = this.value;
+    newClassEl.value = getNext(s.currentClass, selected);
+  });
+
+  // جيڪڏهن اڳ ۾ status موجود آهي ته نيو ڪلاس به صحيح ڏيکاريو
+  if (statusEl.value) {
+    newClassEl.value = getNext(s.currentClass, statusEl.value);
+  }
+
+  updateNavButtons();
+}
+
+function getNext(currentClass, status) {
+  if (!status) return '';
+
+  if (status === 'Promoted') {
+    const map = {
+      'Kachi':'I',
+      'I':'II',
+      'II':'III',
+      'III':'IV',
+      'IV':'V',
+      'V':'VI',
+      'VI':'VII',
+      'VII':'VIII',
+      'VIII':'IX',
+      'IX':'X',
+      'X':'XI',
+      'XI':'XII'
+    };
+    return map[currentClass] || currentClass || '';
+  }
+
+  return currentClass || '';
+}
+
+async function save() {
+  if (saving || !filtered.length) return;
+
+  const statusEl = document.getElementById('status');
+  const newClassEl = document.getElementById('newClass');
+  const rowMsgEl = document.getElementById('rowMsg');
+
+  if (!statusEl || !newClassEl || !rowMsgEl) return;
+
+  if (!statusEl.value) {
+    rowMsgEl.className = "status-msg error";
+    rowMsgEl.innerText = "Select status";
+    return;
+  }
+
+  saving = true;
+  updateNavButtons();
+
+  rowMsgEl.className = "status-msg loading";
+  rowMsgEl.innerText = "Saving...";
+
+  const s = filtered[i];
+
+  try {
+    const r = await api({
+      action:'save',
+      rowNumber:s.rowNumber,
+      currentClass:s.currentClass,
+      status:statusEl.value
+    });
+
+    if (!r.ok) throw new Error(r.error || 'Save failed');
+
+    s.status = statusEl.value;
+    s.newClass = r.data.newClass || '';
+    newClassEl.value = r.data.newClass || '';
+
+    rowMsgEl.className = "status-msg success";
+    rowMsgEl.innerText = "Saved ✓";
+
+    setTimeout(() => {
+      saving = false;
+      if (i < filtered.length - 1) {
+        i++;
+        show();
+        window.scrollTo(0, 0);
+      } else {
+        updateNavButtons();
+      }
+    }, 400);
+
+  } catch (e) {
+    saving = false;
+    rowMsgEl.className = "status-msg error";
+    rowMsgEl.innerText = e.message || String(e);
+    updateNavButtons();
+  }
+}
+
+function nextStudent() {
+  if (saving) return;
+  if (i < filtered.length - 1) {
+    i++;
+    show();
+  }
+}
+
+function prevStudent() {
+  if (saving) return;
+  if (i > 0) {
+    i--;
+    show();
+  }
+}
+
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+loadInit();
+</script>
+
+</body>
+</html>
