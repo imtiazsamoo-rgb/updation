@@ -114,7 +114,7 @@ button:disabled{
 </div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbxN6JX5ClM_X0stmP4o_FMka4MgiGqgS8-e1T6tF39G2yw_FUsSscbVUjbF0t-WPUwtLg/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzWkftKuy1LMUTay3g4wXR-URiip7kZIBDjwaxSvXiloxhtyRlhsaDHxpOHGTqBleLcjg/exec';
 
 let data = null;
 let students = [];
@@ -276,7 +276,6 @@ function show() {
     newClassEl.value = getNext(s.currentClass, selected);
   });
 
-  // جيڪڏهن اڳ ۾ status موجود آهي ته نيو ڪلاس به صحيح ڏيکاريو
   if (statusEl.value) {
     newClassEl.value = getNext(s.currentClass, statusEl.value);
   }
